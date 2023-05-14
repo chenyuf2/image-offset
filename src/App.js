@@ -1,5 +1,6 @@
 import "./App.scss";
 import { Canvas } from "@react-three/fiber";
+import { useRef } from "react";
 import Scene from "components/Scene/Scene";
 const App = () => {
   return (

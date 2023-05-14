@@ -2,97 +2,108 @@ import { useTexture } from "@react-three/drei";
 import "./ImageShaderMaterial";
 import img from "images/img.jpg";
 import * as THREE from "three";
-import { useControls } from "leva";
-import { useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { clamp } from "three/src/math/MathUtils";
 const ratio = 1.75;
 const imageHeight = 3.008 * ratio;
 const imageWidth = 2 * ratio;
+const width = 15;
+const height = 24;
+const relaxation = 0.9;
+const strength = 0.9;
 const Scene = () => {
-  const width = 10;
-  const height = 16;
   const meshRef = useRef();
-  const { g, a, b, sX, sY, wX, wY, r } = useControls({
-    g: {
-      value: 0,
-      max: 1,
-      min: 0,
-      step: 0.01,
-    },
-    a: {
-      value: 0,
-      max: 1,
-      min: 0,
-      step: 0.01,
-    },
-    b: {
-      value: 0,
-      max: 1,
-      min: 0,
-      step: 0.01,
-    },
-    sX: {
-      value: 1,
-      max: 30,
-      min: 0,
-      step: 0.1,
-    },
-    sY: {
-      value: 1,
-      max: 30,
-      min: 0,
-      step: 0.1,
-    },
-    wX: {
-      value: 1,
-      max: 30,
-      min: 0,
-      step: 0.1,
-    },
-    wY: {
-      value: 1,
-      max: 30,
-      min: 0,
-      step: 0.1,
-    },
-    r: {
-      value: 0,
-      max: 1,
-      min: 0,
-      step: 0.01,
-    },
+  const mouseRef = useRef({
+    x: 0,
+    y: 0,
+    diffX: 0,
+    diffY: 0,
   });
   const [texture] = useTexture([img]);
+  const gridUnitWidth = imageWidth / width;
+  const gridUnitHeight = imageHeight / height;
+  const shiftTexture = generateShiftTexture();
 
-  const size = width * height;
-  const data = new Uint8Array(4 * size);
+  const { viewport, size } = useThree();
 
-  for (let i = 0; i < size; i++) {
-    const stride = i * 4;
-    data[stride] = Math.floor(Math.random() * 255);
-    data[stride + 1] = Math.floor(Math.random() * 255);
-    data[stride + 2] = Math.floor(Math.random() * 255);
-    data[stride + 3] = 255;
+  const mouseOnMove = useCallback(
+    (e) => {
+      const canvasWidth = size.width;
+      const canvasHeight = size.height;
+      const mouseX =
+        ((e.clientX - canvasWidth / 2) * (viewport.width / 2)) /
+        (canvasWidth / 2);
+      const mouseY =
+        ((canvasHeight / 2 - e.clientY) * (viewport.height / 2)) /
+        (canvasHeight / 2);
+      mouseRef.current.diffX = mouseX - mouseRef.current.x;
+      mouseRef.current.diffY = mouseY - mouseRef.current.y;
+      mouseRef.current.x = mouseX;
+      mouseRef.current.y = mouseY;
+    },
+    [size.height, size.width, viewport.height, viewport.width]
+  );
+
+  useEffect(() => {
+    window.addEventListener("mousemove", mouseOnMove);
+    return () => {
+      window.removeEventListener("mousemove", mouseOnMove);
+    };
+  }, [mouseOnMove]);
+
+  function generateShiftTexture() {
+    const size = width * height;
+    const data = new Float32Array(4 * size).fill(0);
+    // used the buffer to create a DataTexture
+    const shiftTexture = new THREE.DataTexture(
+      data,
+      width,
+      height,
+      THREE.RGBAFormat,
+      THREE.FloatType
+    );
+    shiftTexture.needsUpdate = true;
+    return shiftTexture;
   }
 
-  // used the buffer to create a DataTexture
-  const shiftTexture = new THREE.DataTexture(data, width, height);
-  shiftTexture.needsUpdate = true;
+  useFrame(() => {
+    const shiftTextureData =
+      meshRef.current.material.uniforms.shiftTexture.value.image.data;
+    for (let i = 0; i < shiftTextureData.length; i += 4) {
+      shiftTextureData[i] *= relaxation;
+      shiftTextureData[i + 1] *= relaxation;
+    }
+
+    const { x, y, diffX, diffY } = mouseRef.current;
+    const mouseGridX = Math.floor((x + imageWidth / 2) / gridUnitWidth);
+    const mouseGridY = Math.floor((y + imageHeight / 2) / gridUnitHeight);
+    const maxDist = 8;
+    for (let i = 0; i < width; i++) {
+      for (let j = 0; j < height; j++) {
+        const distance = (mouseGridX - i) ** 2 + (mouseGridY - j) ** 2;
+        const maxDistSq = maxDist ** 2;
+        if (distance < maxDistSq) {
+          const index = 4 * (i + width * j);
+
+          let power = maxDist / Math.sqrt(distance);
+          power = clamp(power, 0, 10);
+
+          shiftTextureData[index] += strength * 1.5 * diffX * power;
+          shiftTextureData[index + 1] -= strength * 1.5 * diffY * power;
+        }
+      }
+    }
+
+    mouseRef.current.diffX *= 0.9;
+    mouseRef.current.diffY *= 0.9;
+    meshRef.current.material.uniforms.shiftTexture.value.needsUpdate = true;
+  });
 
   return (
     <mesh ref={meshRef}>
-      <planeGeometry args={[imageWidth, imageHeight, 512, 512]} />
-      <imageShaderMaterial
-        imgTexture={texture}
-        shiftTexture={shiftTexture}
-        g={g}
-        a={a}
-        b={b}
-        sX={sX}
-        sY={sY}
-        wX={wX}
-        wY={wY}
-        r={r}
-      />
+      <planeGeometry args={[imageWidth, imageHeight, 1, 1]} />
+      <imageShaderMaterial imgTexture={texture} shiftTexture={shiftTexture} />
     </mesh>
   );
 };
