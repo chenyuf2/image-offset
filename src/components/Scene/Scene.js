@@ -78,19 +78,28 @@ const Scene = () => {
     const { x, y, diffX, diffY } = mouseRef.current;
     const mouseGridX = Math.floor((x + imageWidth / 2) / gridUnitWidth);
     const mouseGridY = Math.floor((y + imageHeight / 2) / gridUnitHeight);
-    const maxDist = 8;
-    for (let i = 0; i < width; i++) {
-      for (let j = 0; j < height; j++) {
-        const distance = (mouseGridX - i) ** 2 + (mouseGridY - j) ** 2;
-        const maxDistSq = maxDist ** 2;
-        if (distance < maxDistSq) {
-          const index = 4 * (i + width * j);
+    if (
+      !(
+        x < -imageWidth / 2 ||
+        x > imageWidth / 2 ||
+        y < -imageHeight / 2 ||
+        y > imageHeight / 2
+      )
+    ) {
+      const maxDist = 8;
+      for (let i = 0; i < width; i++) {
+        for (let j = 0; j < height; j++) {
+          const distance = (mouseGridX - i) ** 2 + (mouseGridY - j) ** 2;
+          const maxDistSq = maxDist ** 2;
+          if (distance < maxDistSq) {
+            const index = 4 * (i + width * j);
 
-          let power = maxDist / Math.sqrt(distance);
-          power = clamp(power, 0, 10);
+            let power = maxDist / Math.sqrt(distance);
+            power = clamp(power, 0, 10);
 
-          shiftTextureData[index] += strength * 1.5 * diffX * power;
-          shiftTextureData[index + 1] -= strength * 1.5 * diffY * power;
+            shiftTextureData[index] += strength * 1.5 * diffX * power;
+            shiftTextureData[index + 1] += strength * 1.5 * diffY * power;
+          }
         }
       }
     }
@@ -103,7 +112,11 @@ const Scene = () => {
   return (
     <mesh ref={meshRef}>
       <planeGeometry args={[imageWidth, imageHeight, 1, 1]} />
-      <imageShaderMaterial imgTexture={texture} shiftTexture={shiftTexture} />
+      <imageShaderMaterial
+        imgTexture={texture}
+        shiftTexture={shiftTexture}
+        progress={0}
+      />
     </mesh>
   );
 };

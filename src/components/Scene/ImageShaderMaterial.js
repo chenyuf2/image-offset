@@ -13,20 +13,21 @@ class ImageShaderMaterial extends ShaderMaterial {
       `,
       fragmentShader: `
         varying vec2 vUv;
-        varying vec2 b1;
-        varying vec2 c1;
         uniform sampler2D imgTexture;
         uniform sampler2D shiftTexture;
-        uniform float g;
-        uniform float a;
-        uniform float b;
         vec3 s(vec3 t){
           return vec3((t.r+t.g+t.b)/3.);
         }
         void main() {
-            vec4 texShift=texture2D(shiftTexture,vUv);
-            gl_FragColor=texture2D(imgTexture, vUv - .02 * texShift.rg);
-            // gl_FragColor=texture2D(shiftTexture, vUv);
+            vec2 v=vUv;
+            vec2 n=vUv;
+            vec3 o=texture2D(shiftTexture,n).rgb;
+            float g = 0.;
+            vec2 aa=o.rg*(1.-g);
+            vec3 f=texture2D(imgTexture,v-.02*aa).rgb;
+            f=vec3(texture2D(imgTexture,v-.023*aa).r,f.g,texture2D(imgTexture,v-.017*aa).b);
+            f=mix(f,s(f),g);
+            gl_FragColor = vec4(f, 1.);
         }
       `,
       uniforms: {
